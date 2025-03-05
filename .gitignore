@@ -1,0 +1,5 @@
+# pycache der bei jedem build generiert wird, nicht ins repo nehmen!
+**/__pycache__
+**.pyc
+# Euer VENV bitte hier eintragen
+effi_env
