@@ -142,3 +142,59 @@ class DEAEfficiency:
                     cross_eff_matrix[i][j] = int(round((y/x)*100))
 
         return cross_eff_matrix
+
+
+    def calculate_column_laplace(cross_mat):
+        """
+        Berechnet die Lapplace Werte
+        
+        Parameter:
+            cross_mat von calculate_cross_efficiency
+        Rückgabe:
+            Array mit Laplace Werten pro Spalte
+        """
+        temp_laplace = 0
+        laplace_result = np.zeros(len(cross_mat))
+        for j in range(len(cross_mat[0])):
+            for i in range(len(cross_mat)):
+                temp_laplace += cross_mat[i][j]
+            laplace_result[j] = temp_laplace/len(cross_mat)
+        return laplace_result
+
+    def calculate_column_maxmin(cross_mat):
+        """
+        Berechnet die Maxmin Werte
+        
+        Parameter:
+            cross_mat von calculate_cross_efficiency
+        Rückgabe:
+            Array mit Maxmin Werten pro Spalte
+        """
+        temp_min = 0
+        maxmin_result = np.zeros(len(cross_mat))
+        for j in range(len(cross_mat[0])):
+            for i in range(len(cross_mat)):
+                if cross_mat[i][j] < temp_min:
+                    temp_min = cross_mat[i][j]
+            maxmin_result[j] = temp_min
+        return maxmin_result
+
+    def calculate_column_maxmax(cross_mat):
+        """
+        Berechnet die Maxmax Werte
+        
+        Parameter:
+            cross_mat von calculate_cross_efficiency
+        Rückgabe:
+            Array mit Maxmax Werten pro Spalte
+        """
+        temp_max = 0
+        maxmax_result = np.zeros(len(cross_mat))
+        for j in range(len(cross_mat[0])):
+            for i in range(len(cross_mat)):
+                if cross_mat[i][j] > temp_max:
+                    temp_max = cross_mat[i][j]
+            maxmax_result[j] = temp_max
+        return maxmax_result
+
+
