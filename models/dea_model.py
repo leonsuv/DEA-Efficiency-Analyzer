@@ -1,6 +1,6 @@
 import numpy as np
 from dealib.dea.utils.options import Orientation
-from dea.daeffo import DEAEfficiency
+from dea.deaeffi import DEAEfficiency
 
 class DEAModel:
     """Data model for DEA analysis"""
@@ -98,7 +98,11 @@ class DEAModel:
             ranking_data.append({
                 'rank': i + 1,
                 'dmu': self.dmu_names[idx],
-                'avg_ce': round(avg_cross_eff[idx], 4)
+                'avg_ce': round(avg_cross_eff[idx], 4),
+                'laplace': round(self.dea_results.laplace_values[idx], 4),
+                'maxmin': round(self.dea_results.maxmin_values[idx], 4),
+                'maxmax': round(self.dea_results.maxmax_values[idx], 4),
+                'maverick': round(self.dea_results.maverick_values[idx], 4)
             })
             
         return ranking_data

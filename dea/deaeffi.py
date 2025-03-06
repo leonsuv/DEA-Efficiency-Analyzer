@@ -55,12 +55,21 @@ class DEAEfficiency:
         self._bcc_result = None
         self._scale_efficiency = None
         self._cross_eff_matrix = None
+        self._laplace_values = None
+        self._maxmin_values = None
+        self._maxmax_values = None
+        self._maverick_values = None
+        
         # Direkte berechnung der werte bei der Initialisierung eines Objekts
         if instant_calculation:
             self.ccr_result = self.get_ccr()
             self.bcc_result = self.get_bcc()
             self.scale_efficiency = self.get_scale_efficiency()
             self.cross_eff_matrix = self.calculate_cross_efficiency()
+            self.laplace_values = self.calculate_column_laplace(self.cross_eff_matrix)
+            self.maxmin_values = self.calculate_column_maxmin(self.cross_eff_matrix)
+            self.maxmax_values = self.calculate_column_maxmax(self.cross_eff_matrix)
+            self.maverick_values = self.calculate_column_maverick(self.cross_eff_matrix)
     
     def get_ccr(self):
         """
@@ -144,53 +153,53 @@ class DEAEfficiency:
         return cross_eff_matrix
 
 
-    def calculate_column_laplace(cross_mat):
+    def calculate_column_laplace(self, cross_mat):
         """
-        Berechnet die Lapplace Werte
+        Berechnet die Laplace Werte (Durchschnitt je Spalte)
         
         Parameter:
             cross_mat von calculate_cross_efficiency
         Rückgabe:
             Array mit Laplace Werten pro Spalte
         """
-        temp_laplace = 0
         laplace_result = np.zeros(len(cross_mat))
         for j in range(len(cross_mat[0])):
+            temp_laplace = 0
             for i in range(len(cross_mat)):
                 temp_laplace += cross_mat[i][j]
             laplace_result[j] = temp_laplace/len(cross_mat)
         return laplace_result
 
-    def calculate_column_maxmin(cross_mat):
+    def calculate_column_maxmin(self, cross_mat):
         """
-        Berechnet die Maxmin Werte
+        Berechnet die Maxmin Werte (Minimum je Spalte)
         
         Parameter:
             cross_mat von calculate_cross_efficiency
         Rückgabe:
             Array mit Maxmin Werten pro Spalte
         """
-        temp_min = 0
         maxmin_result = np.zeros(len(cross_mat))
         for j in range(len(cross_mat[0])):
+            temp_min = float('inf')  # Start with infinity for finding minimum
             for i in range(len(cross_mat)):
                 if cross_mat[i][j] < temp_min:
                     temp_min = cross_mat[i][j]
             maxmin_result[j] = temp_min
         return maxmin_result
 
-    def calculate_column_maxmax(cross_mat):
+    def calculate_column_maxmax(self, cross_mat):
         """
-        Berechnet die Maxmax Werte
+        Berechnet die Maxmax Werte (Maximum je Spalte)
         
         Parameter:
             cross_mat von calculate_cross_efficiency
         Rückgabe:
             Array mit Maxmax Werten pro Spalte
         """
-        temp_max = 0
         maxmax_result = np.zeros(len(cross_mat))
         for j in range(len(cross_mat[0])):
+            temp_max = float('-inf')  # Start with negative infinity for finding maximum
             for i in range(len(cross_mat)):
                 if cross_mat[i][j] > temp_max:
                     temp_max = cross_mat[i][j]
@@ -198,3 +207,32 @@ class DEAEfficiency:
         return maxmax_result
 
 
+    def calculate_column_maverick(self, cross_mat):
+        """
+        Berechnet die maverick Werte
+        
+        Formel: (self_efficiency - avg_peer_efficiency) / avg_peer_efficiency
+        wobei avg_peer_efficiency der Durchschnitt aller Effizienzwerte für eine DMU
+        außer der Selbstevaluation ist.
+       
+        Parameter:
+            cross_mat von calculate_cross_efficiency
+        Rückgabe:
+            Array mit maverick Werten pro Spalte
+        """
+        maverick_result = np.zeros(len(cross_mat))
+        dmus = len(cross_mat)
+        for j in range(len(cross_mat[0])):
+            # Reset temp_sum for each DMU j
+            temp_sum = 0
+            
+            # Calculate sum of peer appraisals for DMU j
+            for i in range(len(cross_mat)):
+                if i != j:  # Exclude self-evaluation
+                    temp_sum += cross_mat[i][j]
+            
+            # Calculate average peer-appraisal and maverick index
+            average_peer_appraisal = temp_sum / dmus
+            maverick_result[j] = (cross_mat[j][j] - average_peer_appraisal) / average_peer_appraisal
+        
+        return maverick_result

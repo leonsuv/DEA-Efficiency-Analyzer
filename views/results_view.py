@@ -38,13 +38,27 @@ class ResultsView:
                         rows=[],
                         row_key='dmu'
                     ).classes('w-full')
+                    
+                    # Add summary metrics table below the cross-efficiency matrix
+                    ui.label('Summary Metrics').classes('text-md font-bold mt-4')
+                    self.controller.analysis_controller.cross_eff_summary_table = ui.table(
+                        columns=[
+                            {'name': 'metric', 'label': 'Metric', 'field': 'metric', 'sortable': False},
+                        ],
+                        rows=[],
+                        row_key='metric'
+                    ).classes('w-full')
                 
                 with ui.tab_panel('Rankings'):
                     self.controller.analysis_controller.rankings_table = ui.table(
                         columns=[
                             {'name': 'rank', 'label': 'Rank', 'field': 'rank', 'sortable': True},
                             {'name': 'dmu', 'label': 'DMU', 'field': 'dmu', 'sortable': True},
-                            {'name': 'avg_ce', 'label': 'Avg Cross-Efficiency', 'field': 'avg_ce', 'sortable': True}
+                            {'name': 'avg_ce', 'label': 'Avg Cross-Efficiency', 'field': 'avg_ce', 'sortable': True},
+                            {'name': 'laplace', 'label': 'Laplace', 'field': 'laplace', 'sortable': True},
+                            {'name': 'maxmin', 'label': 'Maxmin', 'field': 'maxmin', 'sortable': True},
+                            {'name': 'maxmax', 'label': 'Maxmax', 'field': 'maxmax', 'sortable': True},
+                            {'name': 'maverick', 'label': 'Maverick', 'field': 'maverick', 'sortable': True}
                         ],
                         rows=[],
                         row_key='rank'

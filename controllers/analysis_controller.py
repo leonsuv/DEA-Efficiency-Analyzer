@@ -79,6 +79,8 @@ class AnalysisController:
             self.cross_eff_table.columns = cross_eff_columns
             self.cross_eff_table.rows = cross_eff_rows
             
+            # Also update the cross-efficiency summary table
+            self.update_cross_eff_summary()
         
         # Update rankings table
         rankings_data = self.model.get_rankings_data()
@@ -174,3 +176,49 @@ class AnalysisController:
             ui.notify(f'Results exported to dea_results folder', type='positive')
         else:
             ui.notify(f'Error exporting results', type='negative')
+
+    def update_cross_eff_summary(self):
+        """Update the cross-efficiency summary table with the aggregate metrics"""
+        if not hasattr(self, 'cross_eff_summary_table') or not self.model.dea_results:
+            return
+        
+        # Create columns for each DMU
+        columns = [{'name': 'metric', 'label': 'Metric', 'field': 'metric', 'sortable': False}]
+        for i, name in enumerate(self.model.dmu_names):
+            columns.append({
+                'name': f'dmu_{i+1}',
+                'label': name,
+                'field': f'dmu_{i+1}',
+                'sortable': False
+            })
+        
+        # Create rows for each metric
+        rows = []
+        
+        # Laplace row
+        laplace_row = {'metric': 'Laplace'}
+        for i in range(len(self.model.dmu_names)):
+            laplace_row[f'dmu_{i+1}'] = round(self.model.dea_results.laplace_values[i], 4)
+        rows.append(laplace_row)
+        
+        # Maxmin row
+        maxmin_row = {'metric': 'Maxmin'}
+        for i in range(len(self.model.dmu_names)):
+            maxmin_row[f'dmu_{i+1}'] = round(self.model.dea_results.maxmin_values[i], 4)
+        rows.append(maxmin_row)
+        
+        # Maxmax row
+        maxmax_row = {'metric': 'Maxmax'}
+        for i in range(len(self.model.dmu_names)):
+            maxmax_row[f'dmu_{i+1}'] = round(self.model.dea_results.maxmax_values[i], 4)
+        rows.append(maxmax_row)
+        
+        # Maverick row
+        maverick_row = {'metric': 'Maverick'}
+        for i in range(len(self.model.dmu_names)):
+            maverick_row[f'dmu_{i+1}'] = round(self.model.dea_results.maverick_values[i], 4)
+        rows.append(maverick_row)
+        
+        # Update the table
+        self.cross_eff_summary_table.columns = columns
+        self.cross_eff_summary_table.rows = rows
