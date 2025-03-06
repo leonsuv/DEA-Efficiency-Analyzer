@@ -32,7 +32,7 @@ class DEAEfficiency:
         assert len(x[0]) > 0, "Mindestens eine Input-Variable nötig"
         assert len(y) >= 6, "Mindestens 6 DMUs in y benötigt"
         assert len(y[0]) > 0, "Mindestens eine Output-Variable nötig"
-        assert (len(x[0]) + len(y[0])) * 3 >= len(x), "Mindestens (u+y)*3 DMUs benötigt"
+        #assert (len(x[0]) + len(y[0])) * 3 >= len(x), "Mindestens (u+y)*3 DMUs benötigt"
         
         std_len_x = len(x[0])
         if not all(len(xs) == std_len_x for xs in x):

@@ -59,7 +59,7 @@ x2 = np.array([[100], [75], [150], [250], [125], [125]])
 y2 = np.array([[100], [50], [125], [100], [75], [75]])
 
 # DEA-Effizienz-Objekt erstellen
-dea_analysis = DEAEfficiency(x2, y2, instant_calculation=True)
+dea_analysis = DEAEfficiency(x, y, instant_calculation=True)
 
 # BCC-Werte holen (variable Skaleneffekte)
 print("\nBCC:", dea_analysis.bcc_result)
