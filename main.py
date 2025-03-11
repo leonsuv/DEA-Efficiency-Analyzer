@@ -2,8 +2,8 @@
 #
 # Beispiel "Skigebiete" wird entsprechend aufbereitet.
 #  - Ca. 30 DMUs, ca. 4 Inputs, 2 Outputs
-# Implementierung 2. Phase
-# konstante + variable skalenerträge
+# Implementierung 2. Phase (check)
+# konstante + variable skalenerträge (check)
 #  - (uk= 0)               (uk frei)
 #  - Zwischen beiden switchen können
 # Zwischen Output und Input orientierung switchen können (Check)
