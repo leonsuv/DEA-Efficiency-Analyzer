@@ -35,28 +35,33 @@ class ChartGenerator:
     @staticmethod
     def create_heatmap(dmu_names, cross_eff_matrix):
         """Create cross-efficiency heatmap"""
-        fig = Figure(figsize=(10, 8))
+        fig = Figure(figsize=(12, 10))
         ax = fig.subplots()
         
         im = ax.imshow(cross_eff_matrix, cmap='viridis')
         
-        # Add colorbar
-        cbar = ax.figure.colorbar(im, ax=ax)
-        
         # Show all ticks and label them
         ax.set_xticks(np.arange(len(dmu_names)))
         ax.set_yticks(np.arange(len(dmu_names)))
-        ax.set_xticklabels(dmu_names, rotation=45, ha='right')
+        ax.set_xticklabels(dmu_names, rotation=45, ha='right',)
         ax.set_yticklabels(dmu_names)
+        ax.yaxis.set_tick_params(labelsize=10)
+        ax.xaxis.set_tick_params(labelsize=8)
         
         ax.set_title("Cross-Efficiency Matrix Heatmap")
         
         # Loop over data dimensions and create text annotations
         for i in range(len(dmu_names)):
             for j in range(len(dmu_names)):
-                text = ax.text(j, i, f"{cross_eff_matrix[i, j]:.2f}",
-                              ha="center", va="center", 
-                              color="w" if cross_eff_matrix[i, j] < 0.6 else "k")
+                text = ax.text(
+                    j,
+                    i,
+                    f"{cross_eff_matrix[i, j] * 100:.0f}",
+                    ha="center",
+                    va="center",
+                    fontsize=9,
+                    color="w" if cross_eff_matrix[i, j] < 0.6 else "k"
+                )
                 
                 # Add a special border or highlight for diagonal elements (self-evaluations)
                 if i == j:
