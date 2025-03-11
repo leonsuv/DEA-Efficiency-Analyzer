@@ -1,5 +1,5 @@
 import numpy as np
-from dealib.dea.utils.options import Orientation
+from dealib.dea.utils.options import Orientation, RTS
 from dea.deaeffi import DEAEfficiency
 
 class DEAModel:
@@ -11,7 +11,8 @@ class DEAModel:
         self.dmu_names = None
         self.orientation = Orientation.input
         self.dea_results = None
-    
+        self.returns_type = RTS.crs  # Default to constant returns
+        
     def set_data(self, input_data, output_data, dmu_names=None):
         """Set input and output data for analysis"""
         self.input_data = np.array(input_data)
@@ -25,7 +26,13 @@ class DEAModel:
     def set_orientation(self, orientation):
         """Set DEA orientation"""
         self.orientation = orientation
-    
+
+    def set_returns_type(self, returns_type):
+        """Set DEA returns type; returns_type should be RTS.crs or RTS.vrs"""
+        if returns_type not in (RTS.crs, RTS.vrs):
+            raise ValueError("Invalid returns type")
+        self.returns_type = returns_type
+
     def run_analysis(self):
         """Run DEA analysis using current data and settings"""
         if self.input_data is None or self.output_data is None:
@@ -35,6 +42,7 @@ class DEAModel:
             self.input_data, 
             self.output_data, 
             orientation=self.orientation,
+            const_or_variable=self.returns_type,
             instant_calculation=True
         )
         

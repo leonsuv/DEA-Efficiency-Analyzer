@@ -44,6 +44,10 @@ class AppController:
         """Delegate to analysis controller"""
         self.analysis_controller.change_orientation(e)
     
+    def change_returns_type(self, e):
+        """Delegate to analysis controller"""
+        self.analysis_controller.change_returns_type(e)
+    
     def update_results_ui(self):
         """Delegate to analysis controller"""
         self.analysis_controller.update_results_ui()

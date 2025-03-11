@@ -1,13 +1,13 @@
 #
 #
-# Beispiel "SKigebiete" wird entsprechend aufbereitet.
+# Beispiel "Skigebiete" wird entsprechend aufbereitet.
 #  - Ca. 30 DMUs, ca. 4 Inputs, 2 Outputs
 # Implementierung 2. Phase
 # konstante + variable skalenerträge
 #  - (uk= 0)               (uk frei)
 #  - Zwischen beiden switchen können
-# Zwischen Output und Input orientierung switchen können
-# Implementierung der Auswahlregeln
+# Zwischen Output und Input orientierung switchen können (Check)
+# Implementierung der Auswahlregeln (Check)
 #  - mittlere spaltensumme
 #  - Maxi-min u. Maxi-Max (ggf weiter mit spaltensumme)
 #  - Maverick-Index (effjj - SUM(efjj)) / SUM(efjj)

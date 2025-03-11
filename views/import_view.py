@@ -1,10 +1,12 @@
 from nicegui import ui
+from dealib.dea.utils.options import RTS
 
 class ImportView:
     """View for data import panel"""
     
     def __init__(self, controller):
         self.controller = controller
+        self.returns_toggle = None
     
     def build(self):
         """Build the import panel UI"""
@@ -16,6 +18,10 @@ class ImportView:
             with ui.row():
                 ui.radio(['Input-Oriented', 'Output-Oriented'], value='Input-Oriented',
                          on_change=self.controller.change_orientation).props('inline')
+            
+            with ui.row():
+                ui.radio(['Constant Returns (CCR)', 'Variable Returns (BCC)'], value='Constant Returns (CCR)',
+                         on_change=self.controller.change_returns_type).props('inline')
             
             ui.separator()
             
