@@ -14,8 +14,6 @@ class MainView:
     
     def build(self):
         """Build the main UI layout"""
-        with ui.header().classes('bg-blue-800 text-white'):
-            ui.label('DEA Efficiency Analysis Tool').classes('text-xl font-bold')
         
         with ui.tabs().classes('w-full') as tabs:
             ui.tab('Data Import', icon='upload')
