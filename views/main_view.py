@@ -59,9 +59,4 @@ class MainView:
             2. View efficiency scores and cross-efficiency results in the Analysis Results tab
             3. Explore visualizations in the Visualization tab
             4. Export your results to CSV for further analysis
-            
-            #### References:
-            
-            - Charnes, A., Cooper, W.W., Rhodes, E. (1978). Measuring the efficiency of decision making units. European Journal of Operational Research, 2(6), 429-444.
-            - Banker, R.D., Charnes, A., Cooper, W.W. (1984). Some models for estimating technical and scale inefficiencies in data envelopment analysis. Management Science, 30(9), 1078-1092.
             ''')

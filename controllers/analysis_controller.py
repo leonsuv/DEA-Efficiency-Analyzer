@@ -1,10 +1,6 @@
 import numpy as np
 from nicegui import ui
 from dealib.dea.utils.options import Orientation, RTS
-import base64
-import io
-import os
-import pandas as pd
 from utils.export_utils import ExportManager
 from utils.chart_utils import ChartGenerator
 
