@@ -116,23 +116,17 @@ class DEAEfficiency:
     
     def calculate_cross_efficiency(self, float_values=True):
         """
-        Berechnet die Kreuzeffizienzmatrix.
+        Berechnet die Kreuzeffizienzmatrix mit Berücksichtigung der Orientierung.
         
-        Falls self.rts == RTS.crs wird Model 6 (CCR 2nd Phase) verwendet:
-          effₖₗ* = (uₖᵀ yₗ)/(vₖᵀ xₗ)
-          mit LP:
-            max  uᵀ yₖ   (umformuliert als min -uᵀ yₖ)
-            s.t. vᵀ xₖ = 1
-                 uᵀ yⱼ - vᵀ xⱼ ≤ 0, ∀ j
-                 u, v ≥ 0.
+        Falls self.rts == RTS.crs wird CCR 2nd Phase verwendet:
+        effₖₗ* = (uₖᵀ yₗ)/(vₖᵀ xₗ)
         
-        Falls self.rts == RTS.vrs wird Model 5 (BCC 2nd Phase) verwendet:
-          effₖₗ* = (Uₖᵀ yₗ + uₖ)/(Vₖᵀ xₗ)
-          mit LP:
-            max  (Uᵀ yₖ + u)   (umformuliert als min - (Uᵀ yₖ + u))
-            s.t. Vᵀ xₖ = 1
-                 (Uᵀ yⱼ + u) - Vᵀ xⱼ ≤ 0, ∀ j
-                 U, V ≥ 0, u frei.
+        Falls self.rts == RTS.vrs wird BCC 2nd Phase verwendet:
+        effₖₗ* = (Uₖᵀ yₗ + uₖ)/(Vₖᵀ xₗ)
+        
+        Die Orientierung bestimmt die Normalisierung im LP:
+        - Input-Orientierung: vᵀ xₖ = 1, max uᵀ yₖ
+        - Output-Orientierung: uᵀ yₖ = 1, min vᵀ xₖ
         """
         cross_eff_matrix = np.zeros((self.n_dmus, self.n_dmus))
         
@@ -174,29 +168,44 @@ class DEAEfficiency:
                         cross_eff_matrix[i][j] = int(round(eff * 100))
                         
         return cross_eff_matrix
-    
-    
+
+
     def _solve_second_phase_ccr(self, dmu_index):
         """
-        LP (Model 6: CCR 2nd Phase)
-        max  u^T y[dmu_index]  <=> min -u^T y[dmu_index]
+        LP für CCR (CRS) Second Phase mit Orientierung
+        
+        Input-Orientierung:
+        max  u^T y[dmu_index]  
         s.t. v^T x[dmu_index] = 1
-             u^T y[j] - v^T x[j] ≤ 0  ∀ j
-             u, v ≥ 0.
-        Decision variables: z = [u (dim s), v (dim m)]
+            u^T y[j] - v^T x[j] ≤ 0  ∀ j
+            u, v ≥ 0
+            
+        Output-Orientierung:
+        min  v^T x[dmu_index]
+        s.t. u^T y[dmu_index] = 1
+            u^T y[j] - v^T x[j] ≤ 0  ∀ j
+            u, v ≥ 0
         """
-        s_dim = self.s
-        m_dim = self.m
+        s_dim = self.s  # Anzahl Output-Variablen
+        m_dim = self.m  # Anzahl Input-Variablen
         n = self.n_dmus
         
-        # Objective: maximize u^T y[dmu_index]  => minimize - u^T y[dmu_index]
-        c = [-val for val in self.y[dmu_index]] + [0]*m_dim
+        if self.orientation == Orientation.input:
+            # Input-Orientierung: max u^T y_k mit v^T x_k = 1
+            c = [-val for val in self.y[dmu_index]] + [0]*m_dim
+            
+            # Normalisierung: v^T x[dmu_index] = 1
+            A_eq = [[0]*s_dim + list(self.x[dmu_index])]
+            b_eq = [1]
+        else:
+            # Output-Orientierung: min v^T x_k mit u^T y_k = 1
+            c = [0]*s_dim + list(self.x[dmu_index])
+            
+            # Normalisierung: u^T y[dmu_index] = 1
+            A_eq = [list(self.y[dmu_index]) + [0]*m_dim]
+            b_eq = [1]
         
-        # Equality normalization: v^T x[dmu_index] = 1
-        A_eq = [[0]*s_dim + list(self.x[dmu_index])]
-        b_eq = [1]
-        
-        # Inequality constraints: for each DMU j: u^T y[j] - v^T x[j] ≤ 0
+        # Ungleichungen: Für jedes DMU j: u^T y[j] - v^T x[j] ≤ 0
         A_ub = []
         b_ub = []
         for j in range(n):
@@ -204,10 +213,11 @@ class DEAEfficiency:
             A_ub.append(row)
             b_ub.append(0)
         
+        # Alle Variablen nicht-negativ
         bounds = [(0, None)] * (s_dim + m_dim)
         
         res = opt.linprog(c=c, A_ub=A_ub, b_ub=b_ub, A_eq=A_eq, b_eq=b_eq,
-                          bounds=bounds, method='highs')
+                        bounds=bounds, method='highs')
         if res.success:
             sol = res.x
             u = sol[:s_dim]
@@ -215,41 +225,56 @@ class DEAEfficiency:
             return u, v
         else:
             return None, None
-    
-    
+
+
     def _solve_second_phase_bcc(self, dmu_index):
         """
-        LP (Model 5: BCC 2nd Phase)
-        max (U^T y[dmu_index] + u)   <=> min - (U^T y[dmu_index] + u)
+        LP für BCC (VRS) Second Phase mit Orientierung
+        
+        Input-Orientierung:
+        max  U^T y[dmu_index] + u  
         s.t. V^T x[dmu_index] = 1
-             (U^T y[j] + u) - V^T x[j] ≤ 0  ∀ j
-             U, V ≥ 0, u free.
-        Decision variables: z = [U (dim s), V (dim m), u (scalar)]
+            (U^T y[j] + u) - V^T x[j] ≤ 0  ∀ j
+            U, V ≥ 0, u frei
+            
+        Output-Orientierung:
+        min  V^T x[dmu_index]
+        s.t. U^T y[dmu_index] + u = 1
+            (U^T y[j] + u) - V^T x[j] ≤ 0  ∀ j
+            U, V ≥ 0, u frei
         """
         s_dim = self.s
         m_dim = self.m
         n = self.n_dmus
         
-        # Objective: maximize (U^T y[dmu_index] + u) => minimize - (U^T y[dmu_index] + u)
-        c = [-val for val in self.y[dmu_index]] + [0]*m_dim + [-1]
+        if self.orientation == Orientation.input:
+            # Input-Orientierung: max U^T y_k + u mit V^T x_k = 1
+            c = [-val for val in self.y[dmu_index]] + [0]*m_dim + [-1]  # u frei -> -1 für Maximierung
+            
+            # Normalisierung: V^T x[dmu_index] = 1
+            A_eq = [[0]*s_dim + list(self.x[dmu_index]) + [0]]  # +[0] für u
+            b_eq = [1]
+        else:
+            # Output-Orientierung: min V^T x_k mit U^T y_k + u = 1
+            c = [0]*s_dim + list(self.x[dmu_index]) + [0]  # +[0] für u
+            
+            # Normalisierung: U^T y[dmu_index] + u = 1
+            A_eq = [list(self.y[dmu_index]) + [0]*m_dim + [1]]  # +[1] für u
+            b_eq = [1]
         
-        # Normalization: V^T x[dmu_index] = 1
-        A_eq = [[0]*s_dim + list(self.x[dmu_index]) + [0]]
-        b_eq = [1]
-        
-        # Inequalities: for each DMU j: (U^T y[j] + u) - V^T x[j] ≤ 0
+        # Ungleichungen: Für jedes DMU j: (U^T y[j] + u) - V^T x[j] ≤ 0
         A_ub = []
         b_ub = []
         for j in range(n):
-            row = list(self.y[j]) + [-xi for xi in self.x[j]] + [1]
+            row = list(self.y[j]) + [-xi for xi in self.x[j]] + [1]  # +[1] für u
             A_ub.append(row)
             b_ub.append(0)
         
-        # Bounds: U, V ≥ 0, u free.
+        # Bounds: U, V ≥ 0, u frei
         bounds = [(0, None)]*(s_dim + m_dim) + [(None, None)]
         
         res = opt.linprog(c=c, A_ub=A_ub, b_ub=b_ub, A_eq=A_eq, b_eq=b_eq,
-                          bounds=bounds, method='highs')
+                        bounds=bounds, method='highs')
         if res.success:
             sol = res.x
             U = sol[:s_dim]
