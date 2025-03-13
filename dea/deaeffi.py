@@ -96,7 +96,6 @@ class DEAEfficiency:
         """
         if self._bcc_result is None:
             self._bcc_result = dea(self.x, self.y, rts=RTS.vrs, orientation=self.orientation)
-            print(self._bcc_result)
         
         return self._bcc_result.eff
     
