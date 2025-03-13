@@ -11,7 +11,6 @@ class ResultsView:
         ui.label('DEA Analysis Results').classes('text-lg font-bold')
         
         with ui.card().classes('w-full p-4'):
-            self.controller.analysis_controller.results_message = ui.label('Please import data first to view results')
             self.controller.analysis_controller.results_tabs = ui.tabs().classes('w-full')
             
             with self.controller.analysis_controller.results_tabs:
