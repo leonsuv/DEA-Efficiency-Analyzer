@@ -134,6 +134,7 @@ class DEAEfficiency:
             # Second-phase CCR using Model 6
             for i in range(self.n_dmus):
                 u, v = self._solve_second_phase_ccr(i)
+                print(f"{i}: {u}, {v}")
                 if u is None or v is None:
                     warnings.warn(f"LP für DMU {i} konvergierte nicht; überspringe DMU i.")
                     continue
@@ -174,7 +175,7 @@ class DEAEfficiency:
         """
         LP für CCR (CRS) Second Phase mit Orientierung gemäß den Formeln:
         
-        Input-Orientierung:
+        Output-Orientierung:
         min  sum(s_j)
         s.t. U_k^T y_k = 1
             -U_k^T y_j + V_k^T x_j ≥ 0,  ∀ j
@@ -182,7 +183,7 @@ class DEAEfficiency:
             -U_k^T y_j + V_k^T x_j - s_j ≤ 0,  ∀ j
             U_k, V_k ≥ 0, s_j ≥ 0
             
-        Output-Orientierung:
+        Input-Orientierung:
         min  sum(s_j)
         s.t. V_k^T x_k = 1
             -V_k^T x_j + U_k^T y_j ≤ 0,  ∀ j
@@ -195,9 +196,11 @@ class DEAEfficiency:
         n = self.n_dmus
         
         # First, get the efficiency score for the DMU being evaluated
-        if self.orientation == Orientation.input:
-            # For input orientation, we need to calculate CCR score
-            eff_result = dea(self.x, self.y, rts=RTS.crs, orientation=Orientation.input)
+        if self.orientation == Orientation.output:
+            # For Output orientation, we need to calculate CCR score
+            eff_result = dea(self.x, self.y, rts=RTS.crs, orientation=Orientation.output)
+            print(f"DMU: {dmu_index}")
+            print(f"eff: {eff_result.eff}")
             eff_k = eff_result.eff[dmu_index]
             
             # Decision variables: [U (s_dim), V (m_dim), s (n_dmus)]
@@ -248,9 +251,9 @@ class DEAEfficiency:
                 A_ub.append(row)
                 b_ub.append(0)
             
-        else:  # Output orientation
-            # For output orientation, we need to calculate CCR score
-            eff_result = dea(self.x, self.y, rts=RTS.crs, orientation=Orientation.output)
+        else:  # Input orientation
+            # For input orientation, we need to calculate CCR score
+            eff_result = dea(self.x, self.y, rts=RTS.crs, orientation=Orientation.input)
             eff_k = eff_result.eff[dmu_index]
             
             # Decision variables: [U (s_dim), V (m_dim), s (n_dmus)]
@@ -307,6 +310,9 @@ class DEAEfficiency:
         # Solve the LP
         res = opt.linprog(c=c, A_ub=A_ub, b_ub=b_ub, A_eq=A_eq, b_eq=b_eq,
                         bounds=bounds, method='highs')
+        
+        print(f"c={c}\nA_ub={A_ub}\nb_ub={b_ub}\nA_eq={A_eq}\nb_eq={b_eq}\nbounds={bounds}")
+        print(f"res: {res}")
         if res.success:
             sol = res.x
             u = sol[:s_dim]
@@ -328,8 +334,8 @@ class DEAEfficiency:
         n = self.n_dmus
         
         # First, get the efficiency score for the DMU being evaluated
-        if self.orientation == Orientation.input:
-            eff_result = dea(self.x, self.y, rts=RTS.vrs, orientation=Orientation.input)
+        if self.orientation == Orientation.output:
+            eff_result = dea(self.x, self.y, rts=RTS.vrs, orientation=Orientation.output)
             eff_k = eff_result.eff[dmu_index]
             
             # Decision variables: [U (s_dim), V (m_dim), u0 (1), s (n_dmus)]
@@ -385,8 +391,8 @@ class DEAEfficiency:
                 A_ub.append(row)
                 b_ub.append(0)
                 
-        else:  # Output orientation
-            eff_result = dea(self.x, self.y, rts=RTS.vrs, orientation=Orientation.output)
+        else:  # Input orientation
+            eff_result = dea(self.x, self.y, rts=RTS.vrs, orientation=Orientation.input)
             eff_k = eff_result.eff[dmu_index]
             
             # Decision variables: [U (s_dim), V (m_dim), u0 (1), s (n_dmus)]
@@ -471,7 +477,7 @@ class DEAEfficiency:
         for j in range(len(cross_mat[0])):
             temp_laplace = 0
             for i in range(len(cross_mat)):
-                temp_laplace += cross_mat[i][j]
+                temp_laplace += cross_mat[j][i]
             laplace_result[j] = temp_laplace/len(cross_mat)
         return laplace_result
 
@@ -506,8 +512,9 @@ class DEAEfficiency:
         for j in range(len(cross_mat[0])):
             temp_max = float('-inf')  # Start with negative infinity for finding maximum
             for i in range(len(cross_mat)):
-                if cross_mat[i][j] > temp_max:
-                    temp_max = cross_mat[i][j]
+                if i != j:
+                    if cross_mat[i][j] > temp_max:
+                        temp_max = cross_mat[i][j]
             maxmax_result[j] = temp_max
         return maxmax_result
 
@@ -534,10 +541,10 @@ class DEAEfficiency:
             # Calculate sum of peer appraisals for DMU j
             for i in range(len(cross_mat)):
                 if i != j:  # Exclude self-evaluation
-                    temp_sum += cross_mat[i][j]
+                    temp_sum += cross_mat[j][i]
             
             # Calculate average peer-appraisal and maverick index
-            average_peer_appraisal = temp_sum / dmus
+            average_peer_appraisal = temp_sum / (dmus - 1)
             maverick_result[j] = (cross_mat[j][j] - average_peer_appraisal) / average_peer_appraisal
         
         return maverick_result
