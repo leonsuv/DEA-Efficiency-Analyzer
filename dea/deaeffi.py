@@ -176,10 +176,12 @@ class DEAEfficiency:
         LP für CCR (CRS) Second Phase mit Orientierung gemäß den Formeln:
         
         Output-Orientierung:
-        min     V_k^T * x_k
-        s.t.    U_k^T * y_k = 1,
-                -U_k^T * y_j + V_k^T * x_j >= 0, for all j,
-                U_k, V_k >= 0.
+        min  sum(s_j)
+        s.t. U_k^T y_k = 1
+            -U_k^T y_j + V_k^T x_j ≥ 0,  ∀ j
+            V_k^T x_k = (eff_k*)^(-1)
+            -U_k^T y_j + V_k^T x_j - s_j ≤ 0,  ∀ j
+            U_k, V_k ≥ 0, s_j ≥ 0
             
         Input-Orientierung:
         min  sum(s_j)
@@ -201,29 +203,51 @@ class DEAEfficiency:
             print(f"eff: {eff_result.eff}")
             eff_k = eff_result.eff[dmu_index]
             
-            # Decision variables: [U (s_dim), V (m_dim)]
-            num_variables = s_dim + m_dim
-
-            # Objective: Minimize V^T x_k
-            c = [0] * s_dim + [self.x[dmu_index][i] for i in range(m_dim)]
-
-            # Constraint 1: U^T y_k = 1
-            A_eq = [[0] * num_variables]
+            # Decision variables: [U (s_dim), V (m_dim), s (n_dmus)]
+            num_variables = s_dim + m_dim + n
+            
+            # Objective: minimize sum of slacks
+            c = [0] * (s_dim + m_dim) + [1] * n
+            
+            # Constraint 1: U_k^T y_k = 1
+            A_eq = [[0] * num_variables]  # Will fill below
             for i in range(s_dim):
                 A_eq[0][i] = self.y[dmu_index][i]
             b_eq = [1]
-
-            # Constraint 2: -U^T y_j + V^T x_j ≥ 0 → Convert to U^T y_j - V^T x_j ≤ 0
+            
+            # Constraint 2: V_k^T x_k = (eff_k*)^(-1)
+            A_eq.append([0] * num_variables)
+            for i in range(m_dim):
+                A_eq[1][s_dim + i] = self.x[dmu_index][i]
+            b_eq.append(1.0 / eff_k)
+            
+            # Constraints 3 & 4: For each DMU
             A_ub = []
             b_ub = []
+            
+            # Constraint 3: -U_k^T y_j + V_k^T x_j ≥ 0
             for j in range(n):
                 row = [0] * num_variables
-                # U^T y_j
+                # -U_k^T y_j
                 for i in range(s_dim):
-                    row[i] = self.y[j][i]
-                # -V^T x_j
+                    row[i] = -self.y[j][i]
+                # +V_k^T x_j
                 for i in range(m_dim):
-                    row[s_dim + i] = -self.x[j][i]
+                    row[s_dim + i] = self.x[j][i]
+                A_ub.append([-val for val in row])  # Flip sign for ≥ to ≤
+                b_ub.append(0)
+            
+            # Constraint 4: -U_k^T y_j + V_k^T x_j - s_j ≤ 0
+            for j in range(n):
+                row = [0] * num_variables
+                # -U_k^T y_j
+                for i in range(s_dim):
+                    row[i] = -self.y[j][i]
+                # +V_k^T x_j
+                for i in range(m_dim):
+                    row[s_dim + i] = self.x[j][i]
+                # -s_j
+                row[s_dim + m_dim + j] = -1
                 A_ub.append(row)
                 b_ub.append(0)
             
@@ -311,35 +335,59 @@ class DEAEfficiency:
         
         # First, get the efficiency score for the DMU being evaluated
         if self.orientation == Orientation.output:
-            # Effizienzscore aus Phase 1
             eff_result = dea(self.x, self.y, rts=RTS.vrs, orientation=Orientation.output)
             eff_k = eff_result.eff[dmu_index]
-
-            # Entscheidungsvariablen: [U (s_dim), V (m_dim), u0 (1)]
-            num_variables = s_dim + m_dim + 1
-
-            # Ziel: Minimieren von V^T x_k + u0
-            c = [0] * s_dim + [self.x[dmu_index][i] for i in range(m_dim)] + [1]
-
-            # Gleichheitsbedingung: U^T y_k = 1
+            
+            # Decision variables: [U (s_dim), V (m_dim), u0 (1), s (n_dmus)]
+            num_variables = s_dim + m_dim + 1 + n
+            
+            # Objective: minimize sum of slacks
+            c = [0] * (s_dim + m_dim + 1) + [1] * n
+            
+            # Constraint 1: U_k^T y_k + u0 = 1
             A_eq = [[0] * num_variables]
             for i in range(s_dim):
                 A_eq[0][i] = self.y[dmu_index][i]
+            A_eq[0][s_dim + m_dim] = 1  # u0 coefficient
             b_eq = [1]
-
-            # Ungleichheitsbedingungen: -U^T y_j + V^T x_j + u0 ≥ 0 → U^T y_j - V^T x_j - u0 ≤ 0
+            
+            # Constraint 2: V_k^T x_k = 1/eff_k
+            A_eq.append([0] * num_variables)
+            for i in range(m_dim):
+                A_eq[1][s_dim + i] = self.x[dmu_index][i]
+            b_eq.append(1.0 / eff_k)
+            
+            # Constraints for each DMU
             A_ub = []
             b_ub = []
+            
+            # Constraint: -U_k^T y_j - u0 + V_k^T x_j ≥ 0
             for j in range(n):
                 row = [0] * num_variables
-                # U^T y_j
+                # -U_k^T y_j
                 for i in range(s_dim):
-                    row[i] = self.y[j][i]
-                # -V^T x_j
-                for i in range(m_dim):
-                    row[s_dim + i] = -self.x[j][i]
+                    row[i] = -self.y[j][i]
                 # -u0
                 row[s_dim + m_dim] = -1
+                # +V_k^T x_j
+                for i in range(m_dim):
+                    row[s_dim + i] = self.x[j][i]
+                A_ub.append([-val for val in row])  # Flip sign for ≥ to ≤
+                b_ub.append(0)
+            
+            # Constraint: -U_k^T y_j - u0 + V_k^T x_j - s_j ≤ 0
+            for j in range(n):
+                row = [0] * num_variables
+                # -U_k^T y_j
+                for i in range(s_dim):
+                    row[i] = -self.y[j][i]
+                # -u0
+                row[s_dim + m_dim] = -1
+                # +V_k^T x_j
+                for i in range(m_dim):
+                    row[s_dim + i] = self.x[j][i]
+                # -s_j
+                row[s_dim + m_dim + 1 + j] = -1
                 A_ub.append(row)
                 b_ub.append(0)
                 
