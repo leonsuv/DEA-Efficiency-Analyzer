@@ -55,12 +55,20 @@ class DEAModel:
             
         efficiency_data = []
         for i in range(len(self.dmu_names)):
-            efficiency_data.append({
-                'dmu': self.dmu_names[i],
-                'ccr': round(self.dea_results.ccr_result[i], 4),
-                'bcc': round(self.dea_results.bcc_result[i], 4),
-                'scale': round(self.dea_results.scale_efficiency[i], 4)
-            })
+            if self.orientation == Orientation.input:
+                efficiency_data.append({
+                    'dmu': self.dmu_names[i],
+                    'ccr': round(self.dea_results.ccr_result[i], 4),
+                    'bcc': round(self.dea_results.bcc_result[i], 4),
+                    'scale': round(self.dea_results.scale_efficiency[i], 4)
+                })
+            else:
+                efficiency_data.append({
+                    'dmu': self.dmu_names[i],
+                    'ccr': round(1/self.dea_results.ccr_result[i], 4),
+                    'bcc': round(1/self.dea_results.bcc_result[i], 4),
+                    'scale': round(self.dea_results.scale_efficiency[i], 4)
+                })
             
         return efficiency_data
     

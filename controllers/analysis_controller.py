@@ -51,10 +51,11 @@ class AnalysisController:
             
         ui.notify(f'Orientation changed to {e.value}', type='info')
         # Re-run analysis with new orientation
-        success = self.model.run_analysis()
-        if success:
-            # Update UI with results
-            self.update_results_ui()
+        if self.model.input_data is not None and self.model.output_data is not None:
+            success = self.model.run_analysis()
+            if success:
+                # Update UI with results
+                self.update_results_ui()
 
     def change_returns_type(self, e):
         """Change DEA orientation"""
