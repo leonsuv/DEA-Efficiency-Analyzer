@@ -1,8 +1,10 @@
 dealib==1.0.0
-numpy==1.24.4
-scipy
+numpy>=1.26.0
+scipy>=1.10.0
 nicegui==2.11.1
 pywebview==5.4
 pandas==2.2.3
-matplotlib==3.10.1
+matplotlib>=3.10.0
 cx_Freeze==7.2.10
+fastapi
+uvicorn
