@@ -326,8 +326,21 @@ class DEAEfficiency:
         """
         LP für BCC (VRS) Second Phase mit Orientierung.
         
-        Die Implementierung folgt ähnlichen Prinzipien wie CCR, 
-        aber mit zusätzlichem freien Skalenparameter u0.
+        Input-Orientierung:
+        min  sum(s_j)
+        s.t. V_k^T x_k = 1
+             -V_k^T x_j + U_k^T y_j + u_k ≤ 0  ∀ j
+             U_k^T y_k + u_k = eff_k*
+             -V_k^T x_j + U_k^T y_j + u_k + s_j ≥ 0  ∀ j
+             U_k, V_k ≥ 0, s_j ≥ 0, u_k free
+             
+        Output-Orientierung:
+        min  sum(s_j)
+        s.t. U_k^T y_k = 1
+             -U_k^T y_j + V_k^T x_j + u_k ≥ 0  ∀ j
+             V_k^T x_k = (eff_k*)^(-1)
+             -U_k^T y_j + V_k^T x_j + u_k - s_j ≤ 0  ∀ j
+             U_k, V_k ≥ 0, s_j ≥ 0, u_k free
         """
         s_dim = self.s
         m_dim = self.m
@@ -344,14 +357,13 @@ class DEAEfficiency:
             # Objective: minimize sum of slacks
             c = [0] * (s_dim + m_dim + 1) + [1] * n
             
-            # Constraint 1: U_k^T y_k + u0 = 1
+            # Constraint 1: U_k^T y_k = 1
             A_eq = [[0] * num_variables]
             for i in range(s_dim):
                 A_eq[0][i] = self.y[dmu_index][i]
-            A_eq[0][s_dim + m_dim] = 1  # u0 coefficient
             b_eq = [1]
             
-            # Constraint 2: V_k^T x_k = 1/eff_k
+            # Constraint 2: V_k^T x_k = (eff_k*)^(-1)
             A_eq.append([0] * num_variables)
             for i in range(m_dim):
                 A_eq[1][s_dim + i] = self.x[dmu_index][i]
@@ -361,31 +373,31 @@ class DEAEfficiency:
             A_ub = []
             b_ub = []
             
-            # Constraint: -U_k^T y_j - u0 + V_k^T x_j ≥ 0
+            # Constraint: -U_k^T y_j + V_k^T x_j + u_k ≥ 0
             for j in range(n):
                 row = [0] * num_variables
                 # -U_k^T y_j
                 for i in range(s_dim):
                     row[i] = -self.y[j][i]
-                # -u0
-                row[s_dim + m_dim] = -1
                 # +V_k^T x_j
                 for i in range(m_dim):
                     row[s_dim + i] = self.x[j][i]
+                # +u_k
+                row[s_dim + m_dim] = 1
                 A_ub.append([-val for val in row])  # Flip sign for ≥ to ≤
                 b_ub.append(0)
             
-            # Constraint: -U_k^T y_j - u0 + V_k^T x_j - s_j ≤ 0
+            # Constraint: -U_k^T y_j + V_k^T x_j + u_k - s_j ≤ 0
             for j in range(n):
                 row = [0] * num_variables
                 # -U_k^T y_j
                 for i in range(s_dim):
                     row[i] = -self.y[j][i]
-                # -u0
-                row[s_dim + m_dim] = -1
                 # +V_k^T x_j
                 for i in range(m_dim):
                     row[s_dim + i] = self.x[j][i]
+                # +u_k
+                row[s_dim + m_dim] = 1
                 # -s_j
                 row[s_dim + m_dim + 1 + j] = -1
                 A_ub.append(row)
@@ -407,18 +419,18 @@ class DEAEfficiency:
                 A_eq[0][s_dim + i] = self.x[dmu_index][i]
             b_eq = [1]
             
-            # Constraint 2: U_k^T y_k + u0 = eff_k
+            # Constraint 2: U_k^T y_k + u_k = eff_k*
             A_eq.append([0] * num_variables)
             for i in range(s_dim):
                 A_eq[1][i] = self.y[dmu_index][i]
-            A_eq[1][s_dim + m_dim] = 1  # u0 coefficient
+            A_eq[1][s_dim + m_dim] = 1  # u_k coefficient
             b_eq.append(eff_k)
             
             # Constraints for each DMU
             A_ub = []
             b_ub = []
             
-            # Constraint: -V_k^T x_j + U_k^T y_j + u0 ≤ 0
+            # Constraint: -V_k^T x_j + U_k^T y_j + u_k ≤ 0
             for j in range(n):
                 row = [0] * num_variables
                 # -V_k^T x_j
@@ -427,12 +439,12 @@ class DEAEfficiency:
                 # +U_k^T y_j
                 for i in range(s_dim):
                     row[i] = self.y[j][i]
-                # +u0
+                # +u_k
                 row[s_dim + m_dim] = 1
                 A_ub.append(row)
                 b_ub.append(0)
             
-            # Constraint: -V_k^T x_j + U_k^T y_j + u0 + s_j ≥ 0
+            # Constraint: -V_k^T x_j + U_k^T y_j + u_k + s_j ≥ 0
             for j in range(n):
                 row = [0] * num_variables
                 # -V_k^T x_j
@@ -441,14 +453,14 @@ class DEAEfficiency:
                 # +U_k^T y_j
                 for i in range(s_dim):
                     row[i] = self.y[j][i]
-                # +u0
+                # +u_k
                 row[s_dim + m_dim] = 1
                 # +s_j
                 row[s_dim + m_dim + 1 + j] = 1
                 A_ub.append([-val for val in row])  # Flip sign for ≥ to ≤
                 b_ub.append(0)
         
-        # Bounds: U, V, s ≥ 0, u0 free
+        # Bounds: U, V, s ≥ 0, u_k free
         bounds = [(0, None)] * s_dim + [(0, None)] * m_dim + [(None, None)] + [(0, None)] * n
         
         # Solve the LP
