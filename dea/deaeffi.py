@@ -115,64 +115,49 @@ class DEAEfficiency:
     
     
     def calculate_cross_efficiency(self, float_values=True):
-        """
-        Berechnet die Kreuzeffizienzmatrix mit Berücksichtigung der Orientierung.
-        
-        Falls self.rts == RTS.crs wird CCR 2nd Phase verwendet:
-        effₖₗ* = (uₖᵀ yₗ)/(vₖᵀ xₗ)
-        
-        Falls self.rts == RTS.vrs wird BCC 2nd Phase verwendet:
-        effₖₗ* = (Uₖᵀ yₗ + uₖ)/(Vₖᵀ xₗ)
-        
-        Die Orientierung bestimmt die Normalisierung im LP:
-        - Input-Orientierung: vᵀ xₖ = 1, max uᵀ yₖ
-        - Output-Orientierung: uᵀ yₖ = 1, min vᵀ xₖ
-        """
+        TOL = 1e-12
         cross_eff_matrix = np.zeros((self.n_dmus, self.n_dmus))
-        
-        if self.rts == RTS.crs:
-            # Second-phase CCR using Model 6
-            for i in range(self.n_dmus):
+        for i in range(self.n_dmus):
+            if self.rts == RTS.crs:
                 u, v = self._solve_second_phase_ccr(i)
-                print(f"{i}: {u}, {v}")
                 if u is None or v is None:
-                    warnings.warn(f"LP für DMU {i} konvergierte nicht; überspringe DMU i.")
+                    warnings.warn(f"CCR LP for DMU {i} did not converge; row left as zeros.")
                     continue
                 for j in range(self.n_dmus):
-                    denom = np.dot(v, self.x[j])
-                    # Avoid division by zero
-                    if denom == 0:
-                        eff = 0
-                    else:
-                        eff = np.dot(u, self.y[j]) / denom
-                    if float_values:
-                        cross_eff_matrix[i][j] = eff
-                    else:
-                        cross_eff_matrix[i][j] = int(round(eff * 100))
-        
-        else:
-            # Second-phase BCC using Model 5
-            for i in range(self.n_dmus):
-                U, V, u_free = self._solve_second_phase_bcc(i)
-                if U is None or V is None:
-                    warnings.warn(f"BCC LP für DMU {i} konvergierte nicht; überspringe DMU i.")
+                    denom = float(np.dot(v, self.x[j]))
+                    eff = 0.0 if denom <= TOL else float(np.dot(u, self.y[j])) / denom
+                    # cap tiny numerical overshoot
+                    if eff > 1.0 and eff < 1.0 + 1e-9:
+                        eff = 1.0
+                    cross_eff_matrix[i, j] = eff if float_values else int(round(eff * 100))
+            else:
+                # BCC (VRS)
+                u, v, u0 = self._solve_second_phase_bcc(i)
+                if u is None or v is None:
+                    warnings.warn(f"BCC LP for DMU {i} did not converge; row left as zeros.")
                     continue
                 for j in range(self.n_dmus):
-                    denom = np.dot(V, self.x[j])
-                    if denom == 0:
-                        eff = 0
+                    if self.orientation == Orientation.output:
+                        # Use denominator shift to avoid negative numerators
+                        denom = float(np.dot(v, self.x[j])) - float(u0)
+                        num = float(np.dot(u, self.y[j]))
                     else:
-                        eff = (np.dot(U, self.y[j]) + u_free) / denom
-                    if float_values:
-                        cross_eff_matrix[i][j] = eff
-                    else:
-                        cross_eff_matrix[i][j] = int(round(eff * 100))
-                        
+                        # Input‑oriented BCC (original formula is fine)
+                        denom = float(np.dot(v, self.x[j]))
+                        num = float(np.dot(u, self.y[j])) + float(u0)
+                    eff = 0.0 if denom <= TOL else num / denom
+                    # confine to [0,1] with small tolerance
+                    if eff < 0.0 and eff > -1e-9:
+                        eff = 0.0
+                    if eff > 1.0 and eff < 1.0 + 1e-9:
+                        eff = 1.0
+                    cross_eff_matrix[i, j] = eff if float_values else int(round(eff * 100))
         return cross_eff_matrix
 
 
     def _solve_second_phase_ccr(self, dmu_index):
         """
+<<<<<<< HEAD
         LP für CCR (CRS) Second Phase mit Orientierung gemäß den Formeln:
         
         Output-Orientierung:
@@ -265,13 +250,48 @@ class DEAEfficiency:
             
             # Constraint 1: V_k^T x_k = 1
             A_eq = [[0] * num_variables]  # Will fill below
-            for i in range(m_dim):
-                A_eq[0][s_dim + i] = self.x[dmu_index][i]
-            b_eq = [1]
-            
-            # Constraint 2: U_k^T y_k = eff_k*
-            A_eq.append([0] * num_variables)
+=======
+        Standard CCR multiplier model (no slacks):
+        - Output-oriented:
+            min v^T x_k
+            s.t. u^T y_k = 1
+                u^T y_j - v^T x_j ≤ 0, ∀j
+                u ≥ 0, v ≥ 0
+        - Input-oriented:
+            max u^T y_k  <=>  min -u^T y_k
+            s.t. v^T x_k = 1
+                u^T y_j - v^T x_j ≤ 0, ∀j
+                u ≥ 0, v ≥ 0
+        """
+        s_dim, m_dim, n = self.s, self.m, self.n_dmus
+        num_variables = s_dim + m_dim
+
+        # Small positive lower bounds to stabilize solution and avoid zero denominators
+        eps = 1e-9
+        bounds = [(eps, None)] * s_dim + [(eps, None)] * m_dim
+
+        # Common inequality constraints: u^T y_j - v^T x_j ≤ 0
+        A_ub = []
+        b_ub = []
+        for j in range(n):
+            row = [0.0] * num_variables
+            # u part
             for i in range(s_dim):
+                row[i] = float(self.y[j, i])
+            # v part (-x)
+>>>>>>> 5d99bc8 (working 100% bcc)
+            for i in range(m_dim):
+                row[s_dim + i] = -float(self.x[j, i])
+            A_ub.append(row)
+            b_ub.append(0.0)
+
+        if self.orientation == Orientation.output:
+            # min v^T x_k
+            c = [0.0] * s_dim + [float(self.x[dmu_index, i]) for i in range(m_dim)]
+            # u^T y_k = 1
+            A_eq = [[0.0] * num_variables]
+            for i in range(s_dim):
+<<<<<<< HEAD
                 A_eq[1][i] = self.y[dmu_index][i]
             A_eq[1][s_dim + m_dim] = 1  # u_k coefficient
             b_eq.append(eff_k)
@@ -319,17 +339,42 @@ class DEAEfficiency:
         
         print(f"c={c}\nA_ub={A_ub}\nb_ub={b_ub}\nA_eq={A_eq}\nb_eq={b_eq}\nbounds={bounds}")
         print(f"res: {res}")
+=======
+                A_eq[0][i] = float(self.y[dmu_index, i])
+            b_eq = [1.0]
+        else:
+            # min -u^T y_k  (i.e., maximize u^T y_k)
+            c = [-float(self.y[dmu_index, i]) for i in range(s_dim)] + [0.0] * m_dim
+            # v^T x_k = 1
+            A_eq = [[0.0] * num_variables]
+            for i in range(m_dim):
+                A_eq[0][s_dim + i] = float(self.x[dmu_index, i])
+            b_eq = [1.0]
+
+        res = opt.linprog(c=c, A_ub=A_ub, b_ub=b_ub,
+                        A_eq=A_eq, b_eq=b_eq, bounds=bounds,
+                        method="highs")
+>>>>>>> 5d99bc8 (working 100% bcc)
         if res.success:
             sol = res.x
             u = sol[:s_dim]
-            v = sol[s_dim:s_dim+m_dim]
+            v = sol[s_dim:s_dim + m_dim]
             return u, v
-        else:
-            return None, None
+        # Fallback: try highs-ipm if highs fails
+        res = opt.linprog(c=c, A_ub=A_ub, b_ub=b_ub,
+                        A_eq=A_eq, b_eq=b_eq, bounds=bounds,
+                        method="highs-ipm")
+        if res.success:
+            sol = res.x
+            u = sol[:s_dim]
+            v = sol[s_dim:s_dim + m_dim]
+            return u, v
+        return None, None
 
 
     def _solve_second_phase_bcc(self, dmu_index):
         """
+<<<<<<< HEAD
         LP für BCC (VRS) Second Phase mit Orientierung.
         
         Input-Orientierung:
@@ -472,31 +517,91 @@ class DEAEfficiency:
         # Solve the LP
         res = opt.linprog(c=c, A_ub=A_ub, b_ub=b_ub, A_eq=A_eq, b_eq=b_eq,
                         bounds=bounds, method='highs')
+=======
+        Standard BCC (VRS) multiplier model (u0 free):
+        Constraints (all orientations):
+            u^T y_j - v^T x_j + u0 ≤ 0, ∀j
+            u ≥ 0, v ≥ 0, u0 free
+
+        - Output-oriented:
+            min v^T x_k - u0
+            s.t. u^T y_k = 1
+
+        - Input-oriented:
+            max u^T y_k + u0 <=> min -(u^T y_k + u0)
+            s.t. v^T x_k = 1
+        """
+        s_dim, m_dim, n = self.s, self.m, self.n_dmus
+        num_variables = s_dim + m_dim + 1  # u, v, u0
+
+        eps = 1e-9
+        # u ≥ eps, v ≥ eps, u0 free
+        bounds = [(eps, None)] * s_dim + [(eps, None)] * m_dim + [(None, None)]
+
+        # Inequalities: u^T y_j - v^T x_j + u0 ≤ 0
+        A_ub = []
+        b_ub = []
+        for j in range(n):
+            row = [0.0] * num_variables
+            for i in range(s_dim):
+                row[i] = float(self.y[j, i])
+            for i in range(m_dim):
+                row[s_dim + i] = -float(self.x[j, i])
+            row[s_dim + m_dim] = 1.0  # + u0
+            A_ub.append(row)
+            b_ub.append(0.0)
+
+        if self.orientation == Orientation.output:
+            # min v^T x_k - u0
+            c = [0.0] * s_dim + [float(self.x[dmu_index, i]) for i in range(m_dim)] + [-1.0]
+            # u^T y_k = 1
+            A_eq = [[0.0] * num_variables]
+            for i in range(s_dim):
+                A_eq[0][i] = float(self.y[dmu_index, i])
+            b_eq = [1.0]
+        else:
+            # min -(u^T y_k + u0)
+            c = [-float(self.y[dmu_index, i]) for i in range(s_dim)] + [0.0] * m_dim + [-1.0]
+            # v^T x_k = 1
+            A_eq = [[0.0] * num_variables]
+            for i in range(m_dim):
+                A_eq[0][s_dim + i] = float(self.x[dmu_index, i])
+            b_eq = [1.0]
+
+        res = opt.linprog(c=c, A_ub=A_ub, b_ub=b_ub,
+                        A_eq=A_eq, b_eq=b_eq, bounds=bounds,
+                        method="highs")
+>>>>>>> 5d99bc8 (working 100% bcc)
         if res.success:
             sol = res.x
             u = sol[:s_dim]
-            v = sol[s_dim:s_dim+m_dim]
-            u0 = sol[s_dim+m_dim]
+            v = sol[s_dim:s_dim + m_dim]
+            u0 = sol[s_dim + m_dim]
             return u, v, u0
-        else:
-            return None, None, None
+        # Fallback solver
+        res = opt.linprog(c=c, A_ub=A_ub, b_ub=b_ub,
+                        A_eq=A_eq, b_eq=b_eq, bounds=bounds,
+                        method="highs-ipm")
+        if res.success:
+            sol = res.x
+            u = sol[:s_dim]
+            v = sol[s_dim:s_dim + m_dim]
+            u0 = sol[s_dim + m_dim]
+            return u, v, u0
+        return None, None, None
 
 
     def calculate_column_laplace(self, cross_mat):
         """
-        Berechnet die Laplace Werte (Durchschnitt je Spalte)
-        
-        Parameter:
-            cross_mat von calculate_cross_efficiency
-        Rückgabe:
-            Array mit Laplace Werten pro Spalte
+        Column averages (Laplace) for each DMU (i.e., average appraisal received).
         """
-        laplace_result = np.zeros(len(cross_mat))
-        for j in range(len(cross_mat[0])):
-            temp_laplace = 0
-            for i in range(len(cross_mat)):
-                temp_laplace += cross_mat[j][i]
-            laplace_result[j] = temp_laplace/len(cross_mat)
+        n = len(cross_mat)
+        laplace_result = np.zeros(n)
+        for j in range(n):
+            col_sum = 0.0
+            for i in range(n):
+                col_sum += cross_mat[i][j]  # correct: across rows i, fixed column j
+            laplace_result[j] = col_sum / n
         return laplace_result
 
     def calculate_column_maxmin(self, cross_mat):
@@ -539,30 +644,22 @@ class DEAEfficiency:
 
     def calculate_column_maverick(self, cross_mat):
         """
-        Berechnet die maverick Werte
-        
-        Formel: (self_efficiency - avg_peer_efficiency) / avg_peer_efficiency
-        wobei avg_peer_efficiency der Durchschnitt aller Effizienzwerte für eine DMU
-        außer der Selbstevaluation ist.
-       
-        Parameter:
-            cross_mat von calculate_cross_efficiency
-        Rückgabe:
-            Array mit maverick Werten pro Spalte
+        Maverick index:
+        (self_evaluation - average_peer_appraisal) / average_peer_appraisal
+        where average_peer_appraisal is the column average excluding the diagonal.
         """
-        maverick_result = np.zeros(len(cross_mat))
-        dmus = len(cross_mat)
-        for j in range(len(cross_mat[0])):
-            # Reset temp_sum for each DMU j
-            temp_sum = 0
-            
-            # Calculate sum of peer appraisals for DMU j
-            for i in range(len(cross_mat)):
-                if i != j:  # Exclude self-evaluation
-                    temp_sum += cross_mat[j][i]
-            
-            # Calculate average peer-appraisal and maverick index
-            average_peer_appraisal = temp_sum / (dmus - 1)
-            maverick_result[j] = (cross_mat[j][j] - average_peer_appraisal) / average_peer_appraisal
-        
+        n = len(cross_mat)
+        maverick_result = np.zeros(n)
+        for j in range(n):
+            peer_sum = 0.0
+            for i in range(n):
+                if i != j:
+                    peer_sum += cross_mat[i][j]  # correct: peer appraisals about DMU j
+            avg_peer = peer_sum / (n - 1)
+            self_eval = cross_mat[j][j]
+            # avoid division by zero
+            if avg_peer == 0:
+                maverick_result[j] = np.nan
+            else:
+                maverick_result[j] = (self_eval - avg_peer) / avg_peer
         return maverick_result
